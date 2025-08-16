@@ -35,6 +35,20 @@ async def get_user(
     return user.to_dict()
 
 
+@router.post("/", response_model=dict)
+async def create_user(
+    user_data: dict,
+    current_user: User = Depends(require_permission("create:user")),
+    db: Session = Depends(get_db),
+):
+    """Create new user"""
+    user = User(**user_data)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user.to_dict()
+
+
 @router.put("/{user_id}", response_model=dict)
 async def update_user(
     user_id: int,

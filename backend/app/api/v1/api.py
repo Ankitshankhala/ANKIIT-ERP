@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import auth, users, organizations, dashboard, finance
-from app.api.v1.endpoints import inventory, crm, hr
+from app.api.v1.endpoints import inventory, crm, hr, roles, tenants
 
 # Create main API router
 api_router = APIRouter()
@@ -10,6 +10,8 @@ api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 api_router.include_router(users.router, prefix="/users", tags=["Users"])
 api_router.include_router(organizations.router, prefix="/organizations", tags=["Organizations"])
+api_router.include_router(roles.router, prefix="/roles", tags=["Roles"])
+api_router.include_router(tenants.router, prefix="/tenants", tags=["Tenants"])
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
 
 # ERP module routers
