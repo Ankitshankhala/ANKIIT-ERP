@@ -1,12 +1,13 @@
-from typing import List, Optional
+from typing import List, Optional, Dict
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
-from ..models.crm import Customer, Lead, Opportunity
+from ..models.crm import Customer, Lead, Opportunity, OpportunityStage, Communication
 from ..schemas.crm import (
     CustomerCreate, CustomerUpdate,
     LeadCreate, LeadUpdate,
-    OpportunityCreate, OpportunityUpdate
+    OpportunityCreate, OpportunityUpdate,
+    CommunicationCreate
 )
 from ..core.exceptions import ValidationError
 
@@ -47,6 +48,14 @@ class CRMService:
             query = query.filter((Customer.name.ilike(like)) | (Customer.email.ilike(like)))
         return query.count()
 
+    def delete_customer(self, customer_id: int) -> bool:
+        customer = self.db.query(Customer).filter(Customer.id == customer_id).first()
+        if not customer:
+            return False
+        self.db.delete(customer)
+        self.db.commit()
+        return True
+
     # Leads
     def create_lead(self, data: LeadCreate) -> Lead:
         lead = Lead(**data.dict())
@@ -78,6 +87,14 @@ class CRMService:
             like = f"%{q}%"
             query = query.filter((Lead.name.ilike(like)) | (Lead.email.ilike(like)) | (Lead.phone.ilike(like)))
         return query.count()
+
+    def delete_lead(self, lead_id: int) -> bool:
+        lead = self.db.query(Lead).filter(Lead.id == lead_id).first()
+        if not lead:
+            return False
+        self.db.delete(lead)
+        self.db.commit()
+        return True
 
     # Opportunities
     def create_opportunity(self, data: OpportunityCreate) -> Opportunity:
@@ -111,4 +128,71 @@ class CRMService:
             query = query.filter(Opportunity.name.ilike(like))
         return query.count()
 
+    def delete_opportunity(self, opp_id: int) -> bool:
+        opp = self.db.query(Opportunity).filter(Opportunity.id == opp_id).first()
+        if not opp:
+            return False
+        self.db.delete(opp)
+        self.db.commit()
+        return True
 
+    def advance_opportunity(self, opp_id: int) -> Optional[Opportunity]:
+        opp = self.db.query(Opportunity).filter(Opportunity.id == opp_id).first()
+        if not opp:
+            return None
+        stages = list(OpportunityStage)
+        try:
+            idx = stages.index(opp.stage)
+            if idx < len(stages) - 1:
+                opp.stage = stages[idx + 1]
+                self.db.commit()
+                self.db.refresh(opp)
+        except ValueError:
+            pass
+        return opp
+
+    def get_opportunity_pipeline(self) -> Dict[str, List[Opportunity]]:
+        pipeline = {stage.value: [] for stage in OpportunityStage}
+        for opp in self.db.query(Opportunity).all():
+            pipeline[opp.stage.value].append(opp)
+        return pipeline
+
+    # Communications
+    def create_communication(self, data: CommunicationCreate) -> Communication:
+        comm = Communication(**data.dict())
+        self.db.add(comm)
+        self.db.commit()
+        self.db.refresh(comm)
+        return comm
+
+    def list_communications(
+        self,
+        skip: int = 0,
+        limit: int = 10,
+        customer_id: Optional[int] = None,
+        lead_id: Optional[int] = None,
+        opportunity_id: Optional[int] = None,
+    ) -> List[Communication]:
+        query = self.db.query(Communication)
+        if customer_id:
+            query = query.filter(Communication.customer_id == customer_id)
+        if lead_id:
+            query = query.filter(Communication.lead_id == lead_id)
+        if opportunity_id:
+            query = query.filter(Communication.opportunity_id == opportunity_id)
+        return query.order_by(desc(Communication.occurred_at)).offset(skip).limit(limit).all()
+
+    def count_communications(
+        self,
+        customer_id: Optional[int] = None,
+        lead_id: Optional[int] = None,
+        opportunity_id: Optional[int] = None,
+    ) -> int:
+        query = self.db.query(Communication)
+        if customer_id:
+            query = query.filter(Communication.customer_id == customer_id)
+        if lead_id:
+            query = query.filter(Communication.lead_id == lead_id)
+        if opportunity_id:
+            query = query.filter(Communication.opportunity_id == opportunity_id)
+        return query.count()

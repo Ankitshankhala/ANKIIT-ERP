@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Dict
 from decimal import Decimal
 from datetime import datetime
 from pydantic import BaseModel, Field
@@ -118,5 +118,38 @@ class OpportunityList(BaseModel):
     total: int
     page: int
     size: int
+
+
+class CommunicationBase(BaseModel):
+    customer_id: Optional[int] = None
+    lead_id: Optional[int] = None
+    opportunity_id: Optional[int] = None
+    type: str = Field(..., max_length=20)
+    subject: Optional[str] = Field(None, max_length=200)
+    content: Optional[str] = Field(None, max_length=2000)
+    occurred_at: Optional[datetime] = None
+
+
+class CommunicationCreate(CommunicationBase):
+    pass
+
+
+class CommunicationResponse(CommunicationBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CommunicationList(BaseModel):
+    communications: List[CommunicationResponse]
+    total: int
+    page: int
+    size: int
+
+
+OpportunityPipeline = Dict[str, List[OpportunityResponse]]
 
 

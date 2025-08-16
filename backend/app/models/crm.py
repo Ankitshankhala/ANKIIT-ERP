@@ -21,6 +21,13 @@ class OpportunityStage(str, enum.Enum):
     LOST = "lost"
 
 
+class CommunicationType(str, enum.Enum):
+    CALL = "call"
+    EMAIL = "email"
+    MEETING = "meeting"
+    NOTE = "note"
+
+
 class Customer(BaseModel, Base):
     __tablename__ = "customers"
 
@@ -60,5 +67,21 @@ class Opportunity(BaseModel, Base):
     notes = Column(Text, nullable=True)
 
     customer = relationship("Customer", back_populates="opportunities")
+
+
+class Communication(BaseModel, Base):
+    __tablename__ = "communications"
+
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
+    lead_id = Column(Integer, ForeignKey("leads.id"), nullable=True)
+    opportunity_id = Column(Integer, ForeignKey("opportunities.id"), nullable=True)
+    type = Column(Enum(CommunicationType), nullable=False)
+    subject = Column(String(200), nullable=True)
+    content = Column(Text, nullable=True)
+    occurred_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    customer = relationship("Customer")
+    lead = relationship("Lead")
+    opportunity = relationship("Opportunity")
 
 
