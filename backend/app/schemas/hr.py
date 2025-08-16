@@ -1,5 +1,5 @@
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, date
 from pydantic import BaseModel, Field
 
 
@@ -61,6 +61,58 @@ class AttendanceResponse(AttendanceCreate):
 
 class AttendanceList(BaseModel):
     records: List[AttendanceResponse]
+    total: int
+    page: int
+    size: int
+
+
+class PayrollCreate(BaseModel):
+    employee_id: int
+    period_start: date
+    period_end: date
+    base_salary: float
+    allowances: Optional[float] = 0
+    deductions: Optional[float] = 0
+    net_pay: Optional[float] = None
+    status: Optional[str] = Field('pending')
+
+
+class PayrollResponse(PayrollCreate):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PayrollList(BaseModel):
+    records: List[PayrollResponse]
+    total: int
+    page: int
+    size: int
+
+
+class LeaveCreate(BaseModel):
+    employee_id: int
+    start_date: date
+    end_date: date
+    type: str
+    status: Optional[str] = Field('pending')
+    reason: Optional[str] = Field(None, max_length=1000)
+
+
+class LeaveResponse(LeaveCreate):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class LeaveList(BaseModel):
+    records: List[LeaveResponse]
     total: int
     page: int
     size: int

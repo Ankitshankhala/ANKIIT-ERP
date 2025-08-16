@@ -17,7 +17,9 @@ from .crm import (
 )
 from .hr import (
     EmployeeCreate, EmployeeUpdate, EmployeeResponse, EmployeeList,
-    AttendanceCreate, AttendanceResponse, AttendanceList
+    AttendanceCreate, AttendanceResponse, AttendanceList,
+    PayrollCreate, PayrollResponse, PayrollList,
+    LeaveCreate, LeaveResponse, LeaveList
 )
 from .inventory import (
     ProductCreate, ProductUpdate, ProductResponse, ProductList,
@@ -80,5 +82,11 @@ __all__ = [
     "PaymentList",
     "FinancialSummary",
     "CashFlowSummary",
-    "FinancialMetrics"
+    "FinancialMetrics",
+    "PayrollCreate",
+    "PayrollResponse",
+    "PayrollList",
+    "LeaveCreate",
+    "LeaveResponse",
+    "LeaveList",
 ]

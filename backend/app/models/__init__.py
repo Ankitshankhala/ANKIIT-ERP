@@ -21,7 +21,7 @@ from .inventory import (
 	InventoryValuationLayer,
 )
 from .crm import Customer, Lead, Opportunity
-from .hr import Employee, Attendance
+from .hr import Employee, Attendance, Payroll, Leave
 from .audit import AuditLog
 
 __all__ = [
@@ -61,5 +61,7 @@ __all__ = [
     "Opportunity",
     "Employee",
     "Attendance",
+    "Payroll",
+    "Leave",
     "AuditLog"
 ]
