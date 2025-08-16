@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Numeric, Enum
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Numeric, Enum, Date
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
@@ -21,6 +21,9 @@ class Employee(BaseModel, Base):
     department = Column(String(100), nullable=True)
     title = Column(String(100), nullable=True)
     status = Column(Enum(EmploymentStatus), nullable=False, default=EmploymentStatus.ACTIVE)
+    attendance_records = relationship("Attendance", back_populates="employee")
+    payrolls = relationship("Payroll", back_populates="employee")
+    leaves = relationship("Leave", back_populates="employee")
 
 
 class Attendance(BaseModel, Base):
@@ -31,5 +34,49 @@ class Attendance(BaseModel, Base):
     check_in = Column(DateTime, nullable=True)
     check_out = Column(DateTime, nullable=True)
     notes = Column(Text, nullable=True)
+    employee = relationship("Employee", back_populates="attendance_records")
+
+
+class PayrollStatus(str, enum.Enum):
+    PENDING = "pending"
+    PAID = "paid"
+
+
+class Payroll(BaseModel, Base):
+    __tablename__ = "payrolls"
+
+    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False)
+    period_start = Column(Date, nullable=False)
+    period_end = Column(Date, nullable=False)
+    base_salary = Column(Numeric(12, 2), nullable=False)
+    allowances = Column(Numeric(12, 2), nullable=False, default=0)
+    deductions = Column(Numeric(12, 2), nullable=False, default=0)
+    net_pay = Column(Numeric(12, 2), nullable=False)
+    status = Column(Enum(PayrollStatus), nullable=False, default=PayrollStatus.PENDING)
+    employee = relationship("Employee", back_populates="payrolls")
+
+
+class LeaveType(str, enum.Enum):
+    SICK = "sick"
+    VACATION = "vacation"
+    UNPAID = "unpaid"
+
+
+class LeaveStatus(str, enum.Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class Leave(BaseModel, Base):
+    __tablename__ = "leaves"
+
+    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False)
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=False)
+    type = Column(Enum(LeaveType), nullable=False)
+    status = Column(Enum(LeaveStatus), nullable=False, default=LeaveStatus.PENDING)
+    reason = Column(Text, nullable=True)
+    employee = relationship("Employee", back_populates="leaves")
 
 

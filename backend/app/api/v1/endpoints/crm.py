@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
 from sqlalchemy.orm import Session
 
 from ....core.database import get_db
@@ -9,7 +9,8 @@ from ....services.crm_service import CRMService
 from ....schemas.crm import (
     CustomerCreate, CustomerUpdate, CustomerResponse, CustomerList,
     LeadCreate, LeadUpdate, LeadResponse, LeadList,
-    OpportunityCreate, OpportunityUpdate, OpportunityResponse, OpportunityList
+    OpportunityCreate, OpportunityUpdate, OpportunityResponse, OpportunityList,
+    CommunicationCreate, CommunicationResponse, CommunicationList, OpportunityPipeline
 )
 
 router = APIRouter()
@@ -38,6 +39,13 @@ async def update_customer(customer_id: int, payload: CustomerUpdate, db: Session
     return customer
 
 
+@router.delete('/customers/{customer_id}', status_code=status.HTTP_204_NO_CONTENT)
+async def delete_customer(customer_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_permission('crm:customer:delete'))):
+    if not CRMService(db).delete_customer(customer_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Customer not found')
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 # Leads
 @router.post('/leads', response_model=LeadResponse, status_code=status.HTTP_201_CREATED)
 async def create_lead(payload: LeadCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission('crm:lead:create'))):
@@ -61,6 +69,13 @@ async def update_lead(lead_id: int, payload: LeadUpdate, db: Session = Depends(g
     return lead
 
 
+@router.delete('/leads/{lead_id}', status_code=status.HTTP_204_NO_CONTENT)
+async def delete_lead(lead_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_permission('crm:lead:delete'))):
+    if not CRMService(db).delete_lead(lead_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Lead not found')
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 # Opportunities
 @router.post('/opportunities', response_model=OpportunityResponse, status_code=status.HTTP_201_CREATED)
 async def create_opportunity(payload: OpportunityCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission('crm:opportunity:create'))):
@@ -82,5 +97,48 @@ async def update_opportunity(opp_id: int, payload: OpportunityUpdate, db: Sessio
     if not opp:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Opportunity not found')
     return opp
+
+
+@router.delete('/opportunities/{opp_id}', status_code=status.HTTP_204_NO_CONTENT)
+async def delete_opportunity(opp_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_permission('crm:opportunity:delete'))):
+    if not CRMService(db).delete_opportunity(opp_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Opportunity not found')
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post('/opportunities/{opp_id}/advance', response_model=OpportunityResponse)
+async def advance_opportunity(opp_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_permission('crm:opportunity:update'))):
+    svc = CRMService(db)
+    opp = svc.advance_opportunity(opp_id)
+    if not opp:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Opportunity not found')
+    return opp
+
+
+@router.get('/opportunities/pipeline', response_model=OpportunityPipeline)
+async def opportunity_pipeline(db: Session = Depends(get_db), current_user: User = Depends(require_permission('crm:opportunity:read'))):
+    return CRMService(db).get_opportunity_pipeline()
+
+
+# Communications
+@router.post('/communications', response_model=CommunicationResponse, status_code=status.HTTP_201_CREATED)
+async def create_communication(payload: CommunicationCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission('crm:communication:create'))):
+    return CRMService(db).create_communication(payload)
+
+
+@router.get('/communications', response_model=CommunicationList)
+async def list_communications(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
+    customer_id: Optional[int] = Query(None),
+    lead_id: Optional[int] = Query(None),
+    opportunity_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission('crm:communication:read')),
+):
+    svc = CRMService(db)
+    comms = svc.list_communications(skip=skip, limit=limit, customer_id=customer_id, lead_id=lead_id, opportunity_id=opportunity_id)
+    total = svc.count_communications(customer_id=customer_id, lead_id=lead_id, opportunity_id=opportunity_id)
+    return CommunicationList(communications=comms, total=total, page=skip // limit + 1, size=limit)
 
 

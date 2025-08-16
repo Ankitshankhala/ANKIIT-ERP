@@ -48,6 +48,10 @@ class CRMService {
     return data
   }
 
+  async deleteCustomer(id: number) {
+    await apiClient.delete(`/crm/customers/${id}`)
+  }
+
   async getLeads(params?: { skip?: number; limit?: number; q?: string }) {
     const { data } = await apiClient.get('/crm/leads', { params })
     return data
@@ -58,6 +62,10 @@ class CRMService {
     return data
   }
 
+  async deleteLead(id: number) {
+    await apiClient.delete(`/crm/leads/${id}`)
+  }
+
   async getOpportunities(params?: { skip?: number; limit?: number; q?: string }) {
     const { data } = await apiClient.get('/crm/opportunities', { params })
     return data
@@ -65,6 +73,30 @@ class CRMService {
 
   async createOpportunity(payload: Partial<Opportunity>) {
     const { data } = await apiClient.post('/crm/opportunities', payload)
+    return data
+  }
+
+  async deleteOpportunity(id: number) {
+    await apiClient.delete(`/crm/opportunities/${id}`)
+  }
+
+  async getOpportunityPipeline() {
+    const { data } = await apiClient.get('/crm/opportunities/pipeline')
+    return data
+  }
+
+  async advanceOpportunity(id: number) {
+    const { data } = await apiClient.post(`/crm/opportunities/${id}/advance`)
+    return data
+  }
+
+  async getCommunications(params?: { skip?: number; limit?: number; customer_id?: number; lead_id?: number; opportunity_id?: number }) {
+    const { data } = await apiClient.get('/crm/communications', { params })
+    return data
+  }
+
+  async createCommunication(payload: any) {
+    const { data } = await apiClient.post('/crm/communications', payload)
     return data
   }
 }

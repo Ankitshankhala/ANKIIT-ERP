@@ -20,8 +20,8 @@ from .inventory import (
 	Shipment, ShipmentLine,
 	InventoryValuationLayer,
 )
-from .crm import Customer, Lead, Opportunity
-from .hr import Employee, Attendance
+from .crm import Customer, Lead, Opportunity, LeadStatus, OpportunityStage, Communication, CommunicationType
+from .hr import Employee, Attendance, Payroll, Leave
 from .audit import AuditLog
 
 __all__ = [
@@ -59,7 +59,13 @@ __all__ = [
     "Customer",
     "Lead",
     "Opportunity",
+    "LeadStatus",
+    "OpportunityStage",
+    "Communication",
+    "CommunicationType",
     "Employee",
     "Attendance",
+    "Payroll",
+    "Leave",
     "AuditLog"
 ]

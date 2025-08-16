@@ -13,11 +13,14 @@ from .finance import (
 from .crm import (
     CustomerCreate, CustomerUpdate, CustomerResponse, CustomerList,
     LeadCreate, LeadUpdate, LeadResponse, LeadList,
-    OpportunityCreate, OpportunityUpdate, OpportunityResponse, OpportunityList
+    OpportunityCreate, OpportunityUpdate, OpportunityResponse, OpportunityList,
+    CommunicationCreate, CommunicationResponse, CommunicationList, OpportunityPipeline
 )
 from .hr import (
     EmployeeCreate, EmployeeUpdate, EmployeeResponse, EmployeeList,
-    AttendanceCreate, AttendanceResponse, AttendanceList
+    AttendanceCreate, AttendanceResponse, AttendanceList,
+    PayrollCreate, PayrollResponse, PayrollList,
+    LeaveCreate, LeaveResponse, LeaveList
 )
 from .inventory import (
     ProductCreate, ProductUpdate, ProductResponse, ProductList,
@@ -42,6 +45,22 @@ __all__ = [
     "OrganizationResponse",
     "PaginationParams",
     "PaginatedResponse",
+    "CustomerCreate",
+    "CustomerUpdate",
+    "CustomerResponse",
+    "CustomerList",
+    "LeadCreate",
+    "LeadUpdate",
+    "LeadResponse",
+    "LeadList",
+    "OpportunityCreate",
+    "OpportunityUpdate",
+    "OpportunityResponse",
+    "OpportunityList",
+    "CommunicationCreate",
+    "CommunicationResponse",
+    "CommunicationList",
+    "OpportunityPipeline",
     "ProductCreate",
     "ProductUpdate",
     "ProductResponse",
@@ -80,5 +99,11 @@ __all__ = [
     "PaymentList",
     "FinancialSummary",
     "CashFlowSummary",
-    "FinancialMetrics"
+    "FinancialMetrics",
+    "PayrollCreate",
+    "PayrollResponse",
+    "PayrollList",
+    "LeaveCreate",
+    "LeaveResponse",
+    "LeaveList",
 ]
