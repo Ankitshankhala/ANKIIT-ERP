@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from decimal import Decimal
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
@@ -17,6 +17,7 @@ from ..models.finance import (
     InvoiceType,
     InvoiceLineItem,
     AccountingPeriod,
+    AccountCategory,
 )
 from ..models.inventory import Product, Shipment, ShipmentLine
 from ..schemas.finance import (
@@ -542,6 +543,37 @@ class FinanceService:
         return row
     
     # Payment Management
+    def get_payments(
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        sort_by: Optional[str] = None,
+        sort_dir: Optional[str] = None,
+        **filters,
+    ) -> Tuple[List[Payment], int]:
+        """Get payments with optional filtering"""
+        query = self.db.query(Payment)
+
+        if filters.get("invoice_id"):
+            query = query.filter(Payment.invoice_id == filters["invoice_id"])
+        if filters.get("status"):
+            query = query.filter(Payment.status == filters["status"])
+
+        colmap = {
+            "payment_date": Payment.payment_date,
+            "amount": Payment.amount,
+            "created_at": Payment.created_at,
+        }
+        col = colmap.get(sort_by or "payment_date")
+        if sort_dir == "asc":
+            query = query.order_by(col.asc())
+        else:
+            query = query.order_by(col.desc())
+
+        total = query.count()
+        payments = query.offset(skip).limit(limit).all()
+        return payments, total
+
     def create_payment(self, payment_data: PaymentCreate) -> Payment:
         """Create a new payment"""
         try:
@@ -578,26 +610,7 @@ class FinanceService:
         self.db.commit()
         self.db.refresh(payment)
         return payment
-    
-    def process_payment(self, payment_id: int) -> Payment:
-        """Process a payment and create corresponding transaction"""
-        payment = self.db.query(Payment).filter(Payment.id == payment_id).first()
-        if not payment:
-            raise ValidationError("Payment not found")
-        
-        if payment.status == "completed":
-            raise BusinessLogicError("Payment is already completed")
-        
-        # Create transaction for the payment
-        # Debit: Cash/Bank account, Credit: Accounts Receivable
-        # This is a simplified version - in practice, you'd need to determine the cash account
-        
-        # For now, just mark as completed
-        payment.status = "completed"
-        self.db.commit()
-        self.db.refresh(payment)
-        return payment
-    
+
     # Financial Reporting
     def get_financial_summary(self) -> FinancialSummary:
         """Get overall financial summary"""
@@ -646,13 +659,50 @@ class FinanceService:
     
     def get_cash_flow_summary(self, period: str = "month") -> CashFlowSummary:
         """Get cash flow summary for a period"""
-        # This is a simplified version - in practice, you'd calculate from transactions
+        now = datetime.now()
+        if period == "day":
+            start = datetime(now.year, now.month, now.day)
+        elif period == "week":
+            start = datetime(now.year, now.month, now.day) - timedelta(days=now.weekday())
+        elif period == "month":
+            start = datetime(now.year, now.month, 1)
+        elif period == "quarter":
+            q_month = (now.month - 1) // 3 * 3 + 1
+            start = datetime(now.year, q_month, 1)
+        elif period == "year":
+            start = datetime(now.year, 1, 1)
+        else:
+            raise ValidationError("Invalid period")
+
+        cash_accounts = self.db.query(Account).filter(
+            and_(
+                Account.account_type == AccountType.ASSET,
+                Account.category == AccountCategory.CURRENT_ASSETS,
+            )
+        ).all()
+        cash_balance = sum(acc.current_balance for acc in cash_accounts)
+
+        txns = (
+            self.db.query(Transaction)
+            .filter(
+                Transaction.transaction_date >= start,
+                Transaction.transaction_type.in_(
+                    [TransactionType.RECEIPT, TransactionType.PAYMENT]
+                ),
+            )
+            .all()
+        )
+        cash_in = sum(t.amount for t in txns if t.transaction_type == TransactionType.RECEIPT)
+        cash_out = sum(t.amount for t in txns if t.transaction_type == TransactionType.PAYMENT)
+        opening_balance = cash_balance - (cash_in - cash_out)
+        closing_balance = cash_balance
+
         return CashFlowSummary(
             period=period,
-            opening_balance=Decimal('0.00'),
-            cash_in=Decimal('0.00'),
-            cash_out=Decimal('0.00'),
-            closing_balance=Decimal('0.00')
+            opening_balance=opening_balance,
+            cash_in=cash_in,
+            cash_out=cash_out,
+            closing_balance=closing_balance,
         )
     
     def get_financial_metrics(self) -> FinancialMetrics:

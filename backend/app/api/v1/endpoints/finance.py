@@ -355,20 +355,24 @@ async def process_payment(
 async def get_payments(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
+    sort_by: Optional[str] = Query(None),
+    sort_dir: Optional[str] = Query("desc"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("finance:payment:read"))
 ):
     """Get payments"""
     finance_service = FinanceService(db)
-    # This would need to be implemented in the service
-    payments = []  # Placeholder
-    total = 0
-    
+    payments, total = finance_service.get_payments(
+        skip=skip,
+        limit=limit,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
+    )
     return PaymentList(
         payments=payments,
         total=total,
         page=skip // limit + 1,
-        size=limit
+        size=limit,
     )
 
 # Financial Reporting Endpoints
