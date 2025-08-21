@@ -26,7 +26,7 @@ class AuditLog(BaseModel, Base):
     status_code = Column(Integer, nullable=True)
 
     # Payloads
-    metadata = Column(JSON, nullable=True)
+    audit_metadata = Column(JSON, nullable=True)
     before = Column(JSON, nullable=True)
     after = Column(JSON, nullable=True)
     error = Column(Text, nullable=True)

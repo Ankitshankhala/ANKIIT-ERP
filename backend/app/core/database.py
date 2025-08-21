@@ -6,7 +6,7 @@ from typing import Generator
 import logging
 
 from app.core.config import settings
-from app.core.tenant import get_tenant_schema
+# from app.core.tenant import get_tenant_schema  # Commented to avoid circular import
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -39,14 +39,14 @@ def get_db() -> Generator[Session, None, None]:
     """Dependency to get database session"""
     db = SessionLocal()
     try:
-        # Set PostgreSQL search_path for tenant-aware queries
-        try:
-            tenant_schema = get_tenant_schema()
-            if tenant_schema:
-                # Prefer tenant schema, fallback to public
-                db.execute(f'SET search_path TO "{tenant_schema}", public')
-        except Exception as e:
-            logger.warning(f"Failed to set tenant search_path: {e}")
+        # Set PostgreSQL search_path for tenant-aware queries (disabled for SQLite)
+        # try:
+        #     tenant_schema = get_tenant_schema()
+        #     if tenant_schema:
+        #         # Prefer tenant schema, fallback to public
+        #         db.execute(f'SET search_path TO "{tenant_schema}", public')
+        # except Exception as e:
+        #     logger.warning(f"Failed to set tenant search_path: {e}")
         yield db
     except Exception as e:
         logger.error(f"Database session error: {e}")

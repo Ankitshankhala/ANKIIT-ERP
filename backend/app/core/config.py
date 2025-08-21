@@ -1,5 +1,6 @@
 from typing import List, Optional
-from pydantic import BaseSettings, validator
+from pydantic_settings import BaseSettings
+from pydantic import validator
 import os
 
 
@@ -17,11 +18,11 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     
     # Database
-    DATABASE_URL: str = "postgresql://ankiit_user:ankiit_password@localhost:5432/ankiit_erp"
+    DATABASE_URL: str = "sqlite:///./dev.db"
     DATABASE_POOL_SIZE: int = 20
     DATABASE_MAX_OVERFLOW: int = 30
     
-    # Redis
+    # Redis (optional for development)
     REDIS_URL: str = "redis://localhost:6379"
     REDIS_POOL_SIZE: int = 10
     
