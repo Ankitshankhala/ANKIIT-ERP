@@ -9,13 +9,21 @@ from app.models.user import User
 router = APIRouter()
 
 
+def _visible_users(db: Session, current_user: User):
+    """Superusers manage every user; everyone else only sees their own organization."""
+    query = db.query(User)
+    if not current_user.is_superuser:
+        query = query.filter(User.organization_id == current_user.organization_id)
+    return query
+
+
 @router.get("/", response_model=List[dict])
 async def get_users(
     current_user: User = Depends(require_permission("read:user")),
     db: Session = Depends(get_db)
 ):
     """Get all users"""
-    users = db.query(User).all()
+    users = _visible_users(db, current_user).all()
     return [user.to_dict() for user in users]
 
 
@@ -26,7 +34,7 @@ async def get_user(
     db: Session = Depends(get_db)
 ):
     """Get user by ID"""
-    user = db.query(User).filter(User.id == user_id).first()
+    user = _visible_users(db, current_user).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -42,6 +50,8 @@ async def create_user(
     db: Session = Depends(get_db),
 ):
     """Create new user"""
+    if not current_user.is_superuser:
+        user_data = {**user_data, "organization_id": current_user.organization_id}
     user = User(**user_data)
     db.add(user)
     db.commit()
@@ -57,7 +67,7 @@ async def update_user(
     db: Session = Depends(get_db)
 ):
     """Update user"""
-    user = db.query(User).filter(User.id == user_id).first()
+    user = _visible_users(db, current_user).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -67,6 +77,8 @@ async def update_user(
     # Update user fields
     for field, value in user_data.items():
         if hasattr(user, field) and field not in ['id', 'created_at', 'updated_at']:
+            if field == 'organization_id' and not current_user.is_superuser:
+                continue
             setattr(user, field, value)
     
     db.commit()
@@ -81,7 +93,7 @@ async def delete_user(
     db: Session = Depends(get_db)
 ):
     """Delete user"""
-    user = db.query(User).filter(User.id == user_id).first()
+    user = _visible_users(db, current_user).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

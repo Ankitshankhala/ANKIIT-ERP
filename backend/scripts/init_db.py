@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Database initialization script for ANKIIT ERP
-Creates the database tables and seeds roles, an admin user and a starter chart of accounts.
+Creates the database tables and seeds roles, a demo organization with an admin user,
+and that organization's starter chart of accounts.
 
 Run from the backend/ directory:
     python scripts/init_db.py
@@ -19,10 +20,10 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from app.core.config import settings
 from app.core.database import SessionLocal, init_db
-from app.models.finance import Account, AccountType, AccountCategory
 from app.models.organization import Organization
 from app.models.role import Role
 from app.models.user import User
+from app.services.organization_setup import create_default_chart_of_accounts
 
 
 DEFAULT_ROLES = [
@@ -42,27 +43,12 @@ DEFAULT_ROLES = [
     },
 ]
 
-# Codes for the accounts the finance service posts to come from settings (ACCOUNTS_*_CODE)
-SAMPLE_ACCOUNTS = [
-    (settings.ACCOUNTS_CASH_CODE, "Cash", "Cash on hand and in bank",
-     AccountType.ASSET, AccountCategory.CURRENT_ASSETS, "10000.00"),
-    (settings.ACCOUNTS_AR_CODE, "Accounts Receivable", "Amounts owed by customers",
-     AccountType.ASSET, AccountCategory.CURRENT_ASSETS, "0.00"),
-    (settings.ACCOUNTS_INVENTORY_CODE, "Inventory", "Stock on hand at cost",
-     AccountType.ASSET, AccountCategory.CURRENT_ASSETS, "0.00"),
-    ("1500_EQUIPMENT", "Equipment", "Office equipment and furniture",
-     AccountType.ASSET, AccountCategory.FIXED_ASSETS, "5000.00"),
-    (settings.ACCOUNTS_AP_CODE, "Accounts Payable", "Amounts owed to suppliers",
-     AccountType.LIABILITY, AccountCategory.CURRENT_LIABILITIES, "0.00"),
-    ("3000_EQUITY", "Owner's Equity", "Owner's investment in the business",
-     AccountType.EQUITY, AccountCategory.OWNERS_EQUITY, "15000.00"),
-    (settings.ACCOUNTS_REVENUE_CODE, "Sales Revenue", "Revenue from sales and services",
-     AccountType.REVENUE, AccountCategory.OPERATING_REVENUE, "0.00"),
-    (settings.ACCOUNTS_EXPENSE_CODE, "Operating Expenses", "General operating expenses",
-     AccountType.EXPENSE, AccountCategory.OPERATING_EXPENSES, "0.00"),
-    (settings.ACCOUNTS_COGS_CODE, "Cost of Goods Sold", "Cost of inventory sold",
-     AccountType.EXPENSE, AccountCategory.OPERATING_EXPENSES, "0.00"),
-]
+# Opening balances for the demo organization's starter accounts
+DEMO_OPENING_BALANCES = {
+    settings.ACCOUNTS_CASH_CODE: Decimal("10000.00"),
+    "1500_EQUIPMENT": Decimal("5000.00"),
+    "3000_EQUITY": Decimal("15000.00"),
+}
 
 
 def seed_roles(db) -> dict:
@@ -78,7 +64,17 @@ def seed_roles(db) -> dict:
     return roles
 
 
-def seed_admin(db, superuser_role: Role) -> None:
+def seed_demo_organization(db) -> Organization:
+    organization = db.query(Organization).filter(Organization.slug == "ankiit-demo").first()
+    if organization is None:
+        organization = Organization(name="ANKIIT Demo", slug="ankiit-demo", email=settings.ADMIN_EMAIL)
+        db.add(organization)
+        db.flush()
+        print("✓ Created organization 'ANKIIT Demo'")
+    return organization
+
+
+def seed_admin(db, superuser_role: Role, organization: Organization) -> None:
     if not settings.ADMIN_PASSWORD:
         print("• ADMIN_PASSWORD not set, skipping admin user")
         return
@@ -88,12 +84,6 @@ def seed_admin(db, superuser_role: Role) -> None:
     if existing:
         print(f"✓ Admin user '{existing.username}' already exists, skipping...")
         return
-
-    organization = db.query(Organization).filter(Organization.slug == "ankiit-demo").first()
-    if organization is None:
-        organization = Organization(name="ANKIIT Demo", slug="ankiit-demo", email=settings.ADMIN_EMAIL)
-        db.add(organization)
-        db.flush()
 
     db.add(User(
         username=settings.ADMIN_USERNAME,
@@ -108,22 +98,12 @@ def seed_admin(db, superuser_role: Role) -> None:
     print(f"✓ Created admin user '{settings.ADMIN_USERNAME}'")
 
 
-def seed_accounts(db) -> None:
-    if db.query(Account).count() > 0:
+def seed_accounts(db, organization: Organization) -> None:
+    created = create_default_chart_of_accounts(db, organization.id, DEMO_OPENING_BALANCES)
+    if created:
+        print(f"✓ Created {created} starter accounts for '{organization.name}'")
+    else:
         print("✓ Accounts already exist, skipping...")
-        return
-    for code, name, description, account_type, category, balance in SAMPLE_ACCOUNTS:
-        db.add(Account(
-            code=code,
-            name=name,
-            description=description,
-            account_type=account_type,
-            category=category,
-            is_active=True,
-            opening_balance=Decimal(balance),
-            current_balance=Decimal(balance),
-        ))
-    print(f"✓ Created {len(SAMPLE_ACCOUNTS)} sample accounts")
 
 
 def init_database():
@@ -135,8 +115,9 @@ def init_database():
     db = SessionLocal()
     try:
         roles = seed_roles(db)
-        seed_admin(db, roles["superuser"])
-        seed_accounts(db)
+        organization = seed_demo_organization(db)
+        seed_admin(db, roles["superuser"], organization)
+        seed_accounts(db, organization)
         db.commit()
     except Exception as e:
         print(f"❌ Error creating seed data: {e}")
@@ -148,6 +129,9 @@ def init_database():
 
 def main():
     """Main function"""
+    # Windows consoles (cp1252) cannot encode the status symbols; don't crash over them
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
     print("ANKIIT ERP Database Initialization")
     print("=" * 40)
 

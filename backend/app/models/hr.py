@@ -1,8 +1,9 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Numeric, Enum, Date
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Numeric, Enum, Date, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
 from .base import BaseModel, Base
+from app.core.org_scope import OrgScopedMixin
 
 
 class EmploymentStatus(str, enum.Enum):
@@ -11,12 +12,13 @@ class EmploymentStatus(str, enum.Enum):
     ON_LEAVE = "on_leave"
 
 
-class Employee(BaseModel, Base):
+class Employee(OrgScopedMixin, BaseModel, Base):
     __tablename__ = "employees"
+    __table_args__ = (UniqueConstraint("organization_id", "email", name="uq_employees_org_email"),)
 
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
-    email = Column(String(200), nullable=False, unique=True, index=True)
+    email = Column(String(200), nullable=False, index=True)
     phone = Column(String(50), nullable=True)
     department = Column(String(100), nullable=True)
     title = Column(String(100), nullable=True)
@@ -26,7 +28,7 @@ class Employee(BaseModel, Base):
     leaves = relationship("Leave", back_populates="employee")
 
 
-class Attendance(BaseModel, Base):
+class Attendance(OrgScopedMixin, BaseModel, Base):
     __tablename__ = "attendance"
 
     employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False)
@@ -42,7 +44,7 @@ class PayrollStatus(str, enum.Enum):
     PAID = "paid"
 
 
-class Payroll(BaseModel, Base):
+class Payroll(OrgScopedMixin, BaseModel, Base):
     __tablename__ = "payrolls"
 
     employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False)
@@ -68,7 +70,7 @@ class LeaveStatus(str, enum.Enum):
     REJECTED = "rejected"
 
 
-class Leave(BaseModel, Base):
+class Leave(OrgScopedMixin, BaseModel, Base):
     __tablename__ = "leaves"
 
     employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False)

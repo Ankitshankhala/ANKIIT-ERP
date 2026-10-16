@@ -10,13 +10,21 @@ from app.models.user import User
 router = APIRouter()
 
 
+def _visible_tenants(db: Session, current_user: User):
+    """Superusers manage every tenant; everyone else only their organization's."""
+    query = db.query(Tenant)
+    if not current_user.is_superuser:
+        query = query.filter(Tenant.organization_id == current_user.organization_id)
+    return query
+
+
 @router.get("/", response_model=List[dict])
 async def get_tenants(
     current_user: User = Depends(require_permission("read:tenant")),
     db: Session = Depends(get_db),
 ):
     """Get all tenants"""
-    tenants = db.query(Tenant).all()
+    tenants = _visible_tenants(db, current_user).all()
     return [tenant.to_dict() for tenant in tenants]
 
 
@@ -27,6 +35,8 @@ async def create_tenant(
     db: Session = Depends(get_db),
 ):
     """Create new tenant"""
+    if not current_user.is_superuser:
+        tenant_data = {**tenant_data, "organization_id": current_user.organization_id}
     tenant = Tenant(**tenant_data)
     db.add(tenant)
     db.commit()
@@ -42,7 +52,7 @@ async def update_tenant(
     db: Session = Depends(get_db),
 ):
     """Update tenant"""
-    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    tenant = _visible_tenants(db, current_user).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -50,6 +60,8 @@ async def update_tenant(
         )
     for field, value in tenant_data.items():
         if hasattr(tenant, field) and field not in ["id", "created_at", "updated_at"]:
+            if field == "organization_id" and not current_user.is_superuser:
+                continue
             setattr(tenant, field, value)
     db.commit()
     db.refresh(tenant)
@@ -63,7 +75,7 @@ async def delete_tenant(
     db: Session = Depends(get_db),
 ):
     """Delete tenant"""
-    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    tenant = _visible_tenants(db, current_user).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

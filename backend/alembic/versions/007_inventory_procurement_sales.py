@@ -46,7 +46,7 @@ def upgrade():
 
     # Add columns to existing tables
     with op.batch_alter_table('products') as batch:
-        batch.add_column(sa.Column('valuation_method', sa.Enum('fifo', 'average', name='valuationmethod'), nullable=False, server_default='fifo'))
+        batch.add_column(sa.Column('valuation_method', valuation_method, nullable=False, server_default='fifo'))
 
     with op.batch_alter_table('stock_movements') as batch:
         batch.add_column(sa.Column('cost_amount', sa.Numeric(15, 2), nullable=True))
@@ -59,7 +59,7 @@ def upgrade():
         sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.Column('po_number', sa.String(length=50), nullable=False),
         sa.Column('supplier_id', sa.Integer(), nullable=False),
-        sa.Column('status', sa.Enum('draft', 'approved', 'received', 'closed', 'cancelled', name='purchaseorderstatus'), nullable=False, server_default='draft'),
+        sa.Column('status', po_status, nullable=False, server_default='draft'),
         sa.Column('order_date', sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.Column('expected_date', sa.DateTime(), nullable=True),
         sa.Column('notes', sa.Text(), nullable=True),
@@ -128,7 +128,7 @@ def upgrade():
         sa.Column('so_number', sa.String(length=50), nullable=False),
         sa.Column('customer_name', sa.String(length=200), nullable=False),
         sa.Column('customer_email', sa.String(length=200), nullable=True),
-        sa.Column('status', sa.Enum('draft', 'confirmed', 'shipped', 'closed', 'cancelled', name='salesorderstatus'), nullable=False, server_default='draft'),
+        sa.Column('status', so_status, nullable=False, server_default='draft'),
         sa.Column('order_date', sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.Column('expected_ship_date', sa.DateTime(), nullable=True),
         sa.Column('notes', sa.Text(), nullable=True),
@@ -195,7 +195,7 @@ def upgrade():
         sa.Column('warehouse_id', sa.Integer(), nullable=False),
         sa.Column('quantity_remaining', sa.Numeric(14,4), nullable=False, server_default='0.0000'),
         sa.Column('unit_cost', sa.Numeric(12,2), nullable=False, server_default='0.00'),
-        sa.Column('source_type', sa.Enum('grn', 'adjustment', 'opening', name='valuationsourcetype'), nullable=False),
+        sa.Column('source_type', valuation_source_type, nullable=False),
         sa.Column('source_id', sa.Integer(), nullable=True),
         sa.Column('created_at_ts', sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['product_id'], ['products.id']),

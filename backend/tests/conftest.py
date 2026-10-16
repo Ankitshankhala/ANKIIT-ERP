@@ -8,8 +8,12 @@ import pytest
 
 # Point the app at a throwaway SQLite database before any app module is imported.
 # Real environment variables take priority over .env files, so a local .env is ignored here.
+# Set TEST_DATABASE_URL to run against an empty PostgreSQL database instead.
 _TMP_DIR = tempfile.mkdtemp(prefix="ankiit_erp_tests_")
-os.environ["DATABASE_URL"] = f"sqlite:///{Path(_TMP_DIR, 'test.db').as_posix()}"
+os.environ["DATABASE_URL"] = (
+    os.environ.get("TEST_DATABASE_URL")
+    or f"sqlite:///{Path(_TMP_DIR, 'test.db').as_posix()}"
+)
 os.environ["DEBUG"] = "false"
 os.environ["ADMIN_USERNAME"] = "admin"
 os.environ["ADMIN_EMAIL"] = "admin@example.com"
@@ -47,6 +51,31 @@ def admin_headers(client):
     )
     assert response.status_code == 200, response.text
     return _bearer(response.json()["access_token"])
+
+
+@pytest.fixture
+def make_org_admin(make_user):
+    """Register a user in a new organization and give them every permission (not superuser)."""
+    from app.core.database import SessionLocal
+    from app.models.role import Role
+    from app.models.user import User
+
+    def _make(**overrides):
+        user, headers = make_user(**overrides)
+        db = SessionLocal()
+        try:
+            role = db.query(Role).filter(Role.name == "org_admin").first()
+            if role is None:
+                role = Role(name="org_admin", permissions=["*"])
+                db.add(role)
+                db.flush()
+            db.query(User).filter(User.id == user["id"]).update({"role_id": role.id})
+            db.commit()
+        finally:
+            db.close()
+        return user, headers
+
+    return _make
 
 
 @pytest.fixture

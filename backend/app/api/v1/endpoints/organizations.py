@@ -10,13 +10,21 @@ from app.models.user import User
 router = APIRouter()
 
 
+def _visible_organizations(db: Session, current_user: User):
+    """Superusers manage every organization; everyone else only sees their own."""
+    query = db.query(Organization)
+    if not current_user.is_superuser:
+        query = query.filter(Organization.id == current_user.organization_id)
+    return query
+
+
 @router.get("/", response_model=List[dict])
 async def get_organizations(
     current_user: User = Depends(require_permission("read:organization")),
     db: Session = Depends(get_db)
 ):
     """Get all organizations"""
-    organizations = db.query(Organization).all()
+    organizations = _visible_organizations(db, current_user).all()
     return [org.to_dict() for org in organizations]
 
 
@@ -27,7 +35,7 @@ async def get_organization(
     db: Session = Depends(get_db)
 ):
     """Get organization by ID"""
-    org = db.query(Organization).filter(Organization.id == org_id).first()
+    org = _visible_organizations(db, current_user).filter(Organization.id == org_id).first()
     if not org:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -58,7 +66,7 @@ async def update_organization(
     db: Session = Depends(get_db)
 ):
     """Update organization"""
-    org = db.query(Organization).filter(Organization.id == org_id).first()
+    org = _visible_organizations(db, current_user).filter(Organization.id == org_id).first()
     if not org:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -82,7 +90,7 @@ async def delete_organization(
     db: Session = Depends(get_db)
 ):
     """Delete organization"""
-    org = db.query(Organization).filter(Organization.id == org_id).first()
+    org = _visible_organizations(db, current_user).filter(Organization.id == org_id).first()
     if not org:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

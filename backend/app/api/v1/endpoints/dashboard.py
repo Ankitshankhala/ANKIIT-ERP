@@ -18,9 +18,13 @@ async def get_dashboard_stats(
 ):
     """Get dashboard statistics"""
     
-    # Get basic counts
-    total_users = db.query(User).count()
-    total_organizations = db.query(Organization).count()
+    # Get basic counts (platform-wide only for superusers)
+    if current_user.is_superuser:
+        total_users = db.query(User).count()
+        total_organizations = db.query(Organization).count()
+    else:
+        total_users = db.query(User).filter(User.organization_id == current_user.organization_id).count()
+        total_organizations = 1
     
     # Get user's organization stats
     user_org = db.query(Organization).filter(Organization.id == current_user.organization_id).first()
@@ -59,7 +63,7 @@ async def get_recent_activity(
 ):
     """Get recent activity for the dashboard from audit logs"""
     tenant_id = getattr(request.state, "tenant_id", None)
-    query = db.query(AuditLog)
+    query = db.query(AuditLog).filter(AuditLog.organization_id == current_user.organization_id)
     if tenant_id is not None:
         query = query.filter(AuditLog.tenant_id == tenant_id)
     logs = query.order_by(AuditLog.created_at.desc()).limit(20).all()

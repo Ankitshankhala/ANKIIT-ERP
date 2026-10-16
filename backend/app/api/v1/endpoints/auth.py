@@ -15,6 +15,7 @@ from app.core.security import (
 from app.models.user import User
 from app.models.role import Role
 from app.models.organization import Organization
+from app.services.organization_setup import create_default_chart_of_accounts
 from app.schemas.auth import (
     Token,
     UserLogin,
@@ -107,7 +108,10 @@ async def register(
     )
     db.add(organization)
     db.flush()  # Get the ID
-    
+
+    # Each organization keeps its own books, starting from the default chart of accounts
+    create_default_chart_of_accounts(db, organization.id)
+
     # Get default role (user role)
     default_role = db.query(Role).filter(Role.name == "user").first()
     if not default_role:

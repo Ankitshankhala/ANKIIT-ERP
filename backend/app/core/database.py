@@ -5,6 +5,7 @@ from typing import Generator
 import logging
 
 from app.core.config import settings
+from app.core.org_scope import CrossOrganizationReferenceError
 from app.core.tenant_context import get_tenant_schema
 # All models inherit from this Base; re-exported here for convenience
 from app.models.base import Base  # noqa: F401
@@ -61,7 +62,7 @@ def get_db() -> Generator[Session, None, None]:
                 logger.warning(f"Failed to set tenant search_path: {e}")
                 db.rollback()
         yield db
-    except HTTPException:
+    except (HTTPException, CrossOrganizationReferenceError):
         # Normal API errors (401/403/404...) raised by the endpoint, not DB failures
         db.rollback()
         raise

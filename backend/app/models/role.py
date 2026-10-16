@@ -43,8 +43,9 @@ class Role(BaseModel):
                 perms = list(perms.keys())
         if not isinstance(perms, list):
             return False
-        return permission in perms
-    
+        # "*" grants every permission
+        return "*" in perms or permission in perms
+
     def add_permission(self, permission: str) -> bool:
         """Add permission to role"""
         perms = self.permissions or []
