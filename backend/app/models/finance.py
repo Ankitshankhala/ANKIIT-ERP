@@ -65,8 +65,13 @@ class Account(BaseModel, Base):
     is_locked = Column(Boolean, default=False)
     
     # Relationships
-    parent_account = relationship("Account", remote_side=[id], backref="sub_accounts")
-    transactions = relationship("Transaction", backref="account")
+    parent_account = relationship("Account", remote_side="Account.id", backref="sub_accounts")
+    # Transactions touch an account on either side, so this is a read-only union of both FKs
+    transactions = relationship(
+        "Transaction",
+        primaryjoin="or_(Account.id == Transaction.debit_account_id, Account.id == Transaction.credit_account_id)",
+        viewonly=True,
+    )
     
     def __repr__(self):
         return f"<Account(code='{self.code}', name='{self.name}', type='{self.account_type}')>"

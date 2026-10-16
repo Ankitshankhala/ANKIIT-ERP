@@ -1,10 +1,9 @@
-import { useMemo } from 'react'
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom'
 
 export type SortDir = 'asc' | 'desc'
 
 export function useTableState(defaults?: { size?: number; sort_by?: string; sort_dir?: SortDir }){
-  const [params, setParams] = useSearchParams()
+  const [params] = useSearchParams()
   const navigate = useNavigate()
   const location = useLocation()
 

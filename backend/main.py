@@ -17,7 +17,7 @@ async def lifespan(app: FastAPI):
     setup_logging()
     yield
     # Shutdown
-    await engine.dispose()
+    engine.dispose()
 
 
 def create_application() -> FastAPI:

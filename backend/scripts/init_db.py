@@ -1,185 +1,166 @@
 #!/usr/bin/env python3
 """
 Database initialization script for ANKIIT ERP
-This script creates the database tables and populates them with initial data.
+Creates the database tables and seeds roles, an admin user and a starter chart of accounts.
+
+Run from the backend/ directory:
+    python scripts/init_db.py
+
+The admin user is created from ADMIN_USERNAME / ADMIN_EMAIL / ADMIN_PASSWORD
+(see config.env.example). It is skipped when ADMIN_PASSWORD is not set.
 """
 
-import os
 import sys
+from decimal import Decimal
 from pathlib import Path
 
 # Add the parent directory to the Python path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
-from app.models import Base
+from app.core.database import SessionLocal, init_db
 from app.models.finance import Account, AccountType, AccountCategory
-from app.core.security import get_password_hash
+from app.models.organization import Organization
+from app.models.role import Role
+from app.models.user import User
+
+
+DEFAULT_ROLES = [
+    {
+        "name": "superuser",
+        "display_name": "Super User",
+        "description": "Full access to every module",
+        "permissions": ["*"],
+        "is_system_role": True,
+    },
+    {
+        "name": "user",
+        "display_name": "User",
+        "description": "Default user role",
+        "permissions": ["read:profile", "update:profile"],
+        "is_system_role": True,
+    },
+]
+
+# Codes for the accounts the finance service posts to come from settings (ACCOUNTS_*_CODE)
+SAMPLE_ACCOUNTS = [
+    (settings.ACCOUNTS_CASH_CODE, "Cash", "Cash on hand and in bank",
+     AccountType.ASSET, AccountCategory.CURRENT_ASSETS, "10000.00"),
+    (settings.ACCOUNTS_AR_CODE, "Accounts Receivable", "Amounts owed by customers",
+     AccountType.ASSET, AccountCategory.CURRENT_ASSETS, "0.00"),
+    (settings.ACCOUNTS_INVENTORY_CODE, "Inventory", "Stock on hand at cost",
+     AccountType.ASSET, AccountCategory.CURRENT_ASSETS, "0.00"),
+    ("1500_EQUIPMENT", "Equipment", "Office equipment and furniture",
+     AccountType.ASSET, AccountCategory.FIXED_ASSETS, "5000.00"),
+    (settings.ACCOUNTS_AP_CODE, "Accounts Payable", "Amounts owed to suppliers",
+     AccountType.LIABILITY, AccountCategory.CURRENT_LIABILITIES, "0.00"),
+    ("3000_EQUITY", "Owner's Equity", "Owner's investment in the business",
+     AccountType.EQUITY, AccountCategory.OWNERS_EQUITY, "15000.00"),
+    (settings.ACCOUNTS_REVENUE_CODE, "Sales Revenue", "Revenue from sales and services",
+     AccountType.REVENUE, AccountCategory.OPERATING_REVENUE, "0.00"),
+    (settings.ACCOUNTS_EXPENSE_CODE, "Operating Expenses", "General operating expenses",
+     AccountType.EXPENSE, AccountCategory.OPERATING_EXPENSES, "0.00"),
+    (settings.ACCOUNTS_COGS_CODE, "Cost of Goods Sold", "Cost of inventory sold",
+     AccountType.EXPENSE, AccountCategory.OPERATING_EXPENSES, "0.00"),
+]
+
+
+def seed_roles(db) -> dict:
+    roles = {}
+    for spec in DEFAULT_ROLES:
+        role = db.query(Role).filter(Role.name == spec["name"]).first()
+        if role is None:
+            role = Role(**spec)
+            db.add(role)
+            print(f"✓ Created role '{spec['name']}'")
+        roles[spec["name"]] = role
+    db.flush()
+    return roles
+
+
+def seed_admin(db, superuser_role: Role) -> None:
+    if not settings.ADMIN_PASSWORD:
+        print("• ADMIN_PASSWORD not set, skipping admin user")
+        return
+    existing = db.query(User).filter(
+        (User.username == settings.ADMIN_USERNAME) | (User.email == settings.ADMIN_EMAIL)
+    ).first()
+    if existing:
+        print(f"✓ Admin user '{existing.username}' already exists, skipping...")
+        return
+
+    organization = db.query(Organization).filter(Organization.slug == "ankiit-demo").first()
+    if organization is None:
+        organization = Organization(name="ANKIIT Demo", slug="ankiit-demo", email=settings.ADMIN_EMAIL)
+        db.add(organization)
+        db.flush()
+
+    db.add(User(
+        username=settings.ADMIN_USERNAME,
+        email=settings.ADMIN_EMAIL,
+        first_name="Admin",
+        last_name="User",
+        password=settings.ADMIN_PASSWORD,
+        is_verified=True,
+        organization_id=organization.id,
+        role_id=superuser_role.id,
+    ))
+    print(f"✓ Created admin user '{settings.ADMIN_USERNAME}'")
+
+
+def seed_accounts(db) -> None:
+    if db.query(Account).count() > 0:
+        print("✓ Accounts already exist, skipping...")
+        return
+    for code, name, description, account_type, category, balance in SAMPLE_ACCOUNTS:
+        db.add(Account(
+            code=code,
+            name=name,
+            description=description,
+            account_type=account_type,
+            category=category,
+            is_active=True,
+            opening_balance=Decimal(balance),
+            current_balance=Decimal(balance),
+        ))
+    print(f"✓ Created {len(SAMPLE_ACCOUNTS)} sample accounts")
+
 
 def init_database():
-    """Initialize the database with tables and sample data"""
-    
-    # Create database engine
-    engine = create_engine(settings.DATABASE_URL)
-    
-    # Create all tables
+    """Initialize the database with tables and seed data"""
     print("Creating database tables...")
-    Base.metadata.create_all(bind=engine)
+    init_db()
     print("✓ Database tables created successfully")
-    
-    # Create session
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
     db = SessionLocal()
-    
     try:
-        # Check if accounts already exist
-        existing_accounts = db.query(Account).count()
-        if existing_accounts > 0:
-            print("✓ Sample accounts already exist, skipping...")
-            return
-        
-        # Create sample chart of accounts
-        print("Creating sample chart of accounts...")
-        
-        # Asset accounts
-        cash_account = Account(
-            code="1000",
-            name="Cash",
-            description="Cash on hand and in bank",
-            account_type=AccountType.ASSET,
-            category=AccountCategory.CURRENT_ASSETS,
-            is_active=True,
-            opening_balance=10000.00,
-            current_balance=10000.00
-        )
-        
-        accounts_receivable = Account(
-            code="1100",
-            name="Accounts Receivable",
-            description="Amounts owed by customers",
-            account_type=AccountType.ASSET,
-            category=AccountCategory.CURRENT_ASSETS,
-            is_active=True,
-            opening_balance=0.00,
-            current_balance=0.00
-        )
-        
-        equipment_account = Account(
-            code="1500",
-            name="Equipment",
-            description="Office equipment and furniture",
-            account_type=AccountType.ASSET,
-            category=AccountCategory.FIXED_ASSETS,
-            is_active=True,
-            opening_balance=5000.00,
-            current_balance=5000.00
-        )
-        
-        # Liability accounts
-        accounts_payable = Account(
-            code="2000",
-            name="Accounts Payable",
-            description="Amounts owed to suppliers",
-            account_type=AccountType.LIABILITY,
-            category=AccountCategory.CURRENT_LIABILITIES,
-            is_active=True,
-            opening_balance=0.00,
-            current_balance=0.00
-        )
-        
-        # Equity accounts
-        owner_equity = Account(
-            code="3000",
-            name="Owner's Equity",
-            description="Owner's investment in the business",
-            account_type=AccountType.EQUITY,
-            category=AccountCategory.OWNERS_EQUITY,
-            is_active=True,
-            opening_balance=15000.00,
-            current_balance=15000.00
-        )
-        
-        # Revenue accounts
-        service_revenue = Account(
-            code="4000",
-            name="Service Revenue",
-            description="Revenue from consulting services",
-            account_type=AccountType.REVENUE,
-            category=AccountCategory.OPERATING_REVENUE,
-            is_active=True,
-            opening_balance=0.00,
-            current_balance=0.00
-        )
-        
-        # Expense accounts
-        office_supplies = Account(
-            code="5000",
-            name="Office Supplies",
-            description="Office supplies and materials",
-            account_type=AccountType.EXPENSE,
-            category=AccountCategory.OPERATING_EXPENSES,
-            is_active=True,
-            opening_balance=0.00,
-            current_balance=0.00
-        )
-        
-        utilities_expense = Account(
-            code="5100",
-            name="Utilities",
-            description="Electricity, water, internet, etc.",
-            account_type=AccountType.EXPENSE,
-            category=AccountCategory.OPERATING_EXPENSES,
-            is_active=True,
-            opening_balance=0.00,
-            current_balance=0.00
-        )
-        
-        # Add all accounts to session
-        accounts = [
-            cash_account,
-            accounts_receivable,
-            equipment_account,
-            accounts_payable,
-            owner_equity,
-            service_revenue,
-            office_supplies,
-            utilities_expense
-        ]
-        
-        for account in accounts:
-            db.add(account)
-        
-        # Commit the changes
+        roles = seed_roles(db)
+        seed_admin(db, roles["superuser"])
+        seed_accounts(db)
         db.commit()
-        print(f"✓ Created {len(accounts)} sample accounts")
-        
-        # Verify the accounts were created
-        total_accounts = db.query(Account).count()
-        print(f"✓ Total accounts in database: {total_accounts}")
-        
     except Exception as e:
-        print(f"❌ Error creating sample data: {e}")
+        print(f"❌ Error creating seed data: {e}")
         db.rollback()
         raise
     finally:
         db.close()
 
+
 def main():
     """Main function"""
     print("ANKIIT ERP Database Initialization")
     print("=" * 40)
-    
+
     try:
         init_database()
         print("\n🎉 Database initialization completed successfully!")
         print("\nYou can now start the application with:")
-        print("  uvicorn app.main:app --reload --port 8000")
-        
+        print("  uvicorn main:app --reload --port 8000")
+
     except Exception as e:
         print(f"\n❌ Database initialization failed: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

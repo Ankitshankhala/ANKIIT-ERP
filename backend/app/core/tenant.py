@@ -2,26 +2,12 @@ from typing import Optional
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
-import contextvars
 import logging
 
 from app.core.config import settings
 from app.core.database import SessionLocal
+from app.core.tenant_context import get_tenant_schema, set_tenant_schema, tenant_schema_ctx  # noqa: F401
 from app.models.tenant import Tenant
-
-
-# Per-request tenant schema context
-tenant_schema_ctx: contextvars.ContextVar[str] = contextvars.ContextVar(
-    "tenant_schema_ctx", default=settings.DEFAULT_TENANT_SCHEMA
-)
-
-
-def set_tenant_schema(schema_name: str) -> None:
-    tenant_schema_ctx.set(schema_name)
-
-
-def get_tenant_schema() -> str:
-    return tenant_schema_ctx.get()
 
 
 class TenantMiddleware(BaseHTTPMiddleware):

@@ -86,30 +86,56 @@ ANKIIT ERP/
 
 ## 🔧 Development
 
+### Running locally without Docker
+The backend falls back to SQLite when `DATABASE_URL` is a `sqlite:///` URL, so no
+PostgreSQL or Redis is needed for local development. `config.env.example` is set up for this.
+
+```bash
+# From the repository root: local settings (SQLite DB + dev admin user)
+cp config.env.example .env
+```
+
 ### Backend Development
 ```bash
 cd backend
 
 # Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
 
+# Create tables and seed roles, the admin user (ADMIN_* in .env) and a chart of accounts
+python scripts/init_db.py
+
 # Run development server
 uvicorn main:app --reload --port 8000
+
+# Smoke tests (use their own throwaway SQLite database)
+python -m pytest -q
 ```
+
+Sign in with the `ADMIN_USERNAME` / `ADMIN_PASSWORD` from your `.env`. Newly registered users get
+the basic `user` role and cannot open the ERP modules until a superuser grants permissions.
+
+`init_db.py` creates tables straight from the models and works on SQLite and PostgreSQL. The Alembic
+migrations in `alembic/versions` use PostgreSQL-only DDL and cannot run on SQLite.
 
 ### Frontend Development
 ```bash
 cd frontend
 
 # Install dependencies
-npm install
+npm ci
 
-# Run development server
+# Run development server (http://localhost:3000, talks to the API on :8000)
 npm run dev
+
+# Type check, smoke tests, production build
+npm run type-check
+npm test
+npm run build
 ```
 
 ### Database Management

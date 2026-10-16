@@ -10,6 +10,9 @@ const api = axios.create({
   },
 })
 
+// Shared, authenticated client used by the module services
+export const apiClient = api
+
 // Add request interceptor to include auth token
 api.interceptors.request.use(
   (config) => {

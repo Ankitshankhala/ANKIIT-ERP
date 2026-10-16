@@ -72,7 +72,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
                         method=request.method,
                         path=str(request.url.path),
                         status_code=status_code,
-                        metadata={
+                        audit_metadata={
                             "duration_ms": duration_ms,
                             "query": request.url.query
                         },

@@ -119,7 +119,11 @@ def check_user_permissions(user: User, required_permission: str) -> bool:
     """Check if user has required permission"""
     if not user.role:
         return False
-    
+
+    # Superusers implicitly hold every permission
+    if user.is_superuser:
+        return True
+
     return user.role.has_permission(required_permission)
 
 

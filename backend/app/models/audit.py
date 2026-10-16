@@ -26,7 +26,8 @@ class AuditLog(BaseModel, Base):
     status_code = Column(Integer, nullable=True)
 
     # Payloads
-    metadata = Column(JSON, nullable=True)
+    # "metadata" is reserved by SQLAlchemy's declarative base; keep the DB column name
+    audit_metadata = Column("metadata", JSON, nullable=True)
     before = Column(JSON, nullable=True)
     after = Column(JSON, nullable=True)
     error = Column(Text, nullable=True)
