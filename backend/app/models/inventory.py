@@ -1,9 +1,10 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Numeric, Enum
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Numeric, Enum, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from decimal import Decimal
 import enum
 from .base import BaseModel, Base
+from app.core.org_scope import OrgScopedMixin
 
 class StockMovementType(str, enum.Enum):
 	RECEIPT = "receipt"  # inbound
@@ -15,10 +16,11 @@ class ValuationMethod(str, enum.Enum):
 	FIFO = "fifo"
 	AVERAGE = "average"
 
-class Product(BaseModel, Base):
+class Product(OrgScopedMixin, BaseModel, Base):
 	__tablename__ = "products"
+	__table_args__ = (UniqueConstraint("organization_id", "sku", name="uq_products_org_sku"),)
 	
-	sku = Column(String(64), unique=True, nullable=False, index=True)
+	sku = Column(String(64), nullable=False, index=True)
 	name = Column(String(200), nullable=False)
 	description = Column(Text, nullable=True)
 	category = Column(String(100), nullable=True)
@@ -32,7 +34,7 @@ class Product(BaseModel, Base):
 	stock_levels = relationship("StockLevel", back_populates="product", cascade="all, delete-orphan")
 	movements = relationship("StockMovement", back_populates="product")
 
-class Supplier(BaseModel, Base):
+class Supplier(OrgScopedMixin, BaseModel, Base):
 	__tablename__ = "suppliers"
 	
 	name = Column(String(200), nullable=False)
@@ -45,10 +47,11 @@ class Supplier(BaseModel, Base):
 	# Relationships
 	purchase_movements = relationship("StockMovement", back_populates="supplier")
 
-class Warehouse(BaseModel, Base):
+class Warehouse(OrgScopedMixin, BaseModel, Base):
 	__tablename__ = "warehouses"
+	__table_args__ = (UniqueConstraint("organization_id", "code", name="uq_warehouses_org_code"),)
 	
-	code = Column(String(20), unique=True, nullable=False, index=True)
+	code = Column(String(20), nullable=False, index=True)
 	name = Column(String(200), nullable=False)
 	location = Column(String(200), nullable=True)
 	description = Column(Text, nullable=True)
@@ -59,7 +62,7 @@ class Warehouse(BaseModel, Base):
 	movements_from = relationship("StockMovement", back_populates="from_warehouse", foreign_keys="StockMovement.from_warehouse_id")
 	movements_to = relationship("StockMovement", back_populates="to_warehouse", foreign_keys="StockMovement.to_warehouse_id")
 
-class StockLevel(BaseModel, Base):
+class StockLevel(OrgScopedMixin, BaseModel, Base):
 	__tablename__ = "stock_levels"
 	
 	product_id = Column(Integer, ForeignKey("products.id"), nullable=False, index=True)
@@ -72,10 +75,11 @@ class StockLevel(BaseModel, Base):
 	product = relationship("Product", back_populates="stock_levels")
 	warehouse = relationship("Warehouse", back_populates="stock_levels")
 
-class StockMovement(BaseModel, Base):
+class StockMovement(OrgScopedMixin, BaseModel, Base):
 	__tablename__ = "stock_movements"
+	__table_args__ = (UniqueConstraint("organization_id", "movement_number", name="uq_stock_movements_org_movement_number"),)
 	
-	movement_number = Column(String(50), unique=True, nullable=False, index=True)
+	movement_number = Column(String(50), nullable=False, index=True)
 	product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
 	quantity = Column(Numeric(14, 4), nullable=False)
 	movement_type = Column(Enum(StockMovementType), nullable=False)
@@ -105,10 +109,11 @@ class PurchaseOrderStatus(str, enum.Enum):
 	CLOSED = "closed"
 	CANCELLED = "cancelled"
 
-class PurchaseOrder(BaseModel, Base):
+class PurchaseOrder(OrgScopedMixin, BaseModel, Base):
 	__tablename__ = "purchase_orders"
+	__table_args__ = (UniqueConstraint("organization_id", "po_number", name="uq_purchase_orders_org_po_number"),)
 
-	po_number = Column(String(50), unique=True, nullable=False, index=True)
+	po_number = Column(String(50), nullable=False, index=True)
 	supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=False)
 	status = Column(Enum(PurchaseOrderStatus), nullable=False, default=PurchaseOrderStatus.DRAFT)
 	order_date = Column(DateTime, nullable=False, default=func.now())
@@ -119,7 +124,7 @@ class PurchaseOrder(BaseModel, Base):
 	supplier = relationship("Supplier")
 	lines = relationship("PurchaseOrderLine", back_populates="purchase_order", cascade="all, delete-orphan")
 
-class PurchaseOrderLine(BaseModel, Base):
+class PurchaseOrderLine(OrgScopedMixin, BaseModel, Base):
 	__tablename__ = "purchase_order_lines"
 
 	purchase_order_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=False, index=True)
@@ -132,10 +137,11 @@ class PurchaseOrderLine(BaseModel, Base):
 	purchase_order = relationship("PurchaseOrder", back_populates="lines")
 	product = relationship("Product")
 
-class GoodsReceipt(BaseModel, Base):
+class GoodsReceipt(OrgScopedMixin, BaseModel, Base):
 	__tablename__ = "goods_receipts"
+	__table_args__ = (UniqueConstraint("organization_id", "grn_number", name="uq_goods_receipts_org_grn_number"),)
 
-	grn_number = Column(String(50), unique=True, nullable=False, index=True)
+	grn_number = Column(String(50), nullable=False, index=True)
 	Supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
 	purchase_order_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=True)
 	warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=False)
@@ -147,7 +153,7 @@ class GoodsReceipt(BaseModel, Base):
 	warehouse = relationship("Warehouse")
 	lines = relationship("GoodsReceiptLine", back_populates="goods_receipt", cascade="all, delete-orphan")
 
-class GoodsReceiptLine(BaseModel, Base):
+class GoodsReceiptLine(OrgScopedMixin, BaseModel, Base):
 	__tablename__ = "goods_receipt_lines"
 
 	goods_receipt_id = Column(Integer, ForeignKey("goods_receipts.id"), nullable=False, index=True)
@@ -168,10 +174,11 @@ class SalesOrderStatus(str, enum.Enum):
 	CLOSED = "closed"
 	CANCELLED = "cancelled"
 
-class SalesOrder(BaseModel, Base):
+class SalesOrder(OrgScopedMixin, BaseModel, Base):
 	__tablename__ = "sales_orders"
+	__table_args__ = (UniqueConstraint("organization_id", "so_number", name="uq_sales_orders_org_so_number"),)
 
-	so_number = Column(String(50), unique=True, nullable=False, index=True)
+	so_number = Column(String(50), nullable=False, index=True)
 	customer_name = Column(String(200), nullable=False)
 	customer_email = Column(String(200), nullable=True)
 	status = Column(Enum(SalesOrderStatus), nullable=False, default=SalesOrderStatus.DRAFT)
@@ -182,7 +189,7 @@ class SalesOrder(BaseModel, Base):
 
 	lines = relationship("SalesOrderLine", back_populates="sales_order", cascade="all, delete-orphan")
 
-class SalesOrderLine(BaseModel, Base):
+class SalesOrderLine(OrgScopedMixin, BaseModel, Base):
 	__tablename__ = "sales_order_lines"
 
 	sales_order_id = Column(Integer, ForeignKey("sales_orders.id"), nullable=False, index=True)
@@ -195,10 +202,11 @@ class SalesOrderLine(BaseModel, Base):
 	sales_order = relationship("SalesOrder", back_populates="lines")
 	product = relationship("Product")
 
-class Shipment(BaseModel, Base):
+class Shipment(OrgScopedMixin, BaseModel, Base):
 	__tablename__ = "shipments"
+	__table_args__ = (UniqueConstraint("organization_id", "ship_number", name="uq_shipments_org_ship_number"),)
 
-	ship_number = Column(String(50), unique=True, nullable=False, index=True)
+	ship_number = Column(String(50), nullable=False, index=True)
 	sales_order_id = Column(Integer, ForeignKey("sales_orders.id"), nullable=True)
 	warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=False)
 	ship_date = Column(DateTime, nullable=False, default=func.now())
@@ -208,7 +216,7 @@ class Shipment(BaseModel, Base):
 	warehouse = relationship("Warehouse")
 	lines = relationship("ShipmentLine", back_populates="shipment", cascade="all, delete-orphan")
 
-class ShipmentLine(BaseModel, Base):
+class ShipmentLine(OrgScopedMixin, BaseModel, Base):
 	__tablename__ = "shipment_lines"
 
 	shipment_id = Column(Integer, ForeignKey("shipments.id"), nullable=False, index=True)
@@ -227,7 +235,7 @@ class ValuationSourceType(str, enum.Enum):
 	ADJUSTMENT = "adjustment"
 	OPENING = "opening"
 
-class InventoryValuationLayer(BaseModel, Base):
+class InventoryValuationLayer(OrgScopedMixin, BaseModel, Base):
 	__tablename__ = "inventory_valuation_layers"
 
 	product_id = Column(Integer, ForeignKey("products.id"), nullable=False, index=True)

@@ -15,13 +15,15 @@ from app.core.security import (
 from app.models.user import User
 from app.models.role import Role
 from app.models.organization import Organization
+from app.services.organization_setup import create_default_chart_of_accounts
 from app.schemas.auth import (
     Token,
     UserLogin,
     UserRegister,
     UserResponse,
     PasswordReset,
-    PasswordResetConfirm
+    PasswordResetConfirm,
+    RefreshTokenRequest
 )
 
 router = APIRouter()
@@ -92,16 +94,24 @@ async def register(
                 detail="Username already taken"
             )
     
-    # Create organization if provided
-    organization = None
-    if user_data.organization_name:
-        organization = Organization(
-            name=user_data.organization_name,
-            email=user_data.email
-        )
-        db.add(organization)
-        db.flush()  # Get the ID
-    
+    # Every user belongs to an organization; fall back to a personal one
+    org_name = (user_data.organization_name or "").strip() or f"{user_data.username}'s workspace"
+    base_slug = Organization.generate_slug(org_name) or user_data.username.lower()
+    slug, suffix = base_slug, 1
+    while db.query(Organization).filter(Organization.slug == slug).first():
+        suffix += 1
+        slug = f"{base_slug}-{suffix}"
+    organization = Organization(
+        name=org_name,
+        slug=slug,
+        email=user_data.email
+    )
+    db.add(organization)
+    db.flush()  # Get the ID
+
+    # Each organization keeps its own books, starting from the default chart of accounts
+    create_default_chart_of_accounts(db, organization.id)
+
     # Get default role (user role)
     default_role = db.query(Role).filter(Role.name == "user").first()
     if not default_role:
@@ -122,7 +132,8 @@ async def register(
         first_name=user_data.first_name,
         last_name=user_data.last_name,
         password=user_data.password,
-        organization_id=organization.id if organization else None,
+        phone=user_data.phone,
+        organization_id=organization.id,
         role_id=default_role.id
     )
     
@@ -135,7 +146,7 @@ async def register(
 
 @router.post("/refresh", response_model=Token)
 async def refresh_token(
-    refresh_token: str,
+    body: RefreshTokenRequest,
     db: Session = Depends(get_db)
 ) -> Any:
     """Refresh access token using refresh token"""
@@ -143,7 +154,7 @@ async def refresh_token(
     # Verify refresh token
     from app.core.security import verify_token
     try:
-        payload = verify_token(refresh_token)
+        payload = verify_token(body.refresh_token)
         token_type = payload.get("type")
         if token_type != "refresh":
             raise HTTPException(
@@ -168,11 +179,12 @@ async def refresh_token(
         
         return {
             "access_token": access_token,
+            "refresh_token": body.refresh_token,
             "token_type": "bearer",
             "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
         }
         
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid refresh token"
@@ -206,11 +218,11 @@ async def get_current_user_info(
 
 @router.post("/password-reset")
 async def request_password_reset(
-    email: str,
+    reset_request: PasswordReset,
     db: Session = Depends(get_db)
 ) -> Any:
     """Request password reset"""
-    user = db.query(User).filter(User.email == email).first()
+    user = db.query(User).filter(User.email == reset_request.email).first()
     
     if user:
         # In a real application, send password reset email

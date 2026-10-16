@@ -1,25 +1,36 @@
-from sqlalchemy import create_engine, MetaData
-from sqlalchemy.ext.declarative import declarative_base
+from fastapi import HTTPException
+from sqlalchemy import create_engine, MetaData, text
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import QueuePool
 from typing import Generator
 import logging
 
 from app.core.config import settings
-from app.core.tenant import get_tenant_schema
+from app.core.org_scope import CrossOrganizationReferenceError
+from app.core.tenant_context import get_tenant_schema
+# All models inherit from this Base; re-exported here for convenience
+from app.models.base import Base  # noqa: F401
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
+IS_SQLITE = settings.DATABASE_URL.startswith("sqlite")
+
 # Create database engine
-engine = create_engine(
-    settings.DATABASE_URL,
-    poolclass=QueuePool,
-    pool_size=settings.DATABASE_POOL_SIZE,
-    max_overflow=settings.DATABASE_MAX_OVERFLOW,
-    pool_pre_ping=True,
-    echo=settings.DEBUG,
-)
+if IS_SQLITE:
+    # Local development / tests. SQLite has no schemas, so tenant search_path is skipped.
+    engine = create_engine(
+        settings.DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        echo=settings.DEBUG,
+    )
+else:
+    engine = create_engine(
+        settings.DATABASE_URL,
+        pool_size=settings.DATABASE_POOL_SIZE,
+        max_overflow=settings.DATABASE_MAX_OVERFLOW,
+        pool_pre_ping=True,
+        echo=settings.DEBUG,
+    )
 
 # Create session factory
 SessionLocal = sessionmaker(
@@ -28,11 +39,12 @@ SessionLocal = sessionmaker(
     bind=engine
 )
 
-# Create base class for models
-Base = declarative_base()
-
 # Metadata for multi-tenancy
 metadata = MetaData()
+
+
+def _quote_identifier(name: str) -> str:
+    return '"' + name.replace('"', '""') + '"'
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -40,14 +52,20 @@ def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:
         # Set PostgreSQL search_path for tenant-aware queries
-        try:
-            tenant_schema = get_tenant_schema()
-            if tenant_schema:
-                # Prefer tenant schema, fallback to public
-                db.execute(f'SET search_path TO "{tenant_schema}", public')
-        except Exception as e:
-            logger.warning(f"Failed to set tenant search_path: {e}")
+        if not IS_SQLITE:
+            try:
+                tenant_schema = get_tenant_schema()
+                if tenant_schema:
+                    # Prefer tenant schema, fallback to public
+                    db.execute(text(f"SET search_path TO {_quote_identifier(tenant_schema)}, public"))
+            except Exception as e:
+                logger.warning(f"Failed to set tenant search_path: {e}")
+                db.rollback()
         yield db
+    except (HTTPException, CrossOrganizationReferenceError):
+        # Normal API errors (401/403/404...) raised by the endpoint, not DB failures
+        db.rollback()
+        raise
     except Exception as e:
         logger.error(f"Database session error: {e}")
         db.rollback()
@@ -60,8 +78,8 @@ def init_db() -> None:
     """Initialize database tables"""
     try:
         # Import all models here to ensure they are registered
-        from app.models import user, organization, tenant  # noqa
-        
+        import app.models  # noqa: F401
+
         # Create all tables
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables created successfully")
@@ -74,7 +92,7 @@ def check_db_connection() -> bool:
     """Check if database connection is working"""
     try:
         with engine.connect() as connection:
-            connection.execute("SELECT 1")
+            connection.execute(text("SELECT 1"))
         return True
     except Exception as e:
         logger.error(f"Database connection check failed: {e}")
@@ -91,10 +109,12 @@ def get_tenant_db(tenant_id: str) -> Session:
 
 def create_tenant_schema(tenant_id: str) -> bool:
     """Create schema for new tenant"""
+    if IS_SQLITE:
+        return True
     try:
         with engine.connect() as connection:
             # Create tenant-specific schema
-            connection.execute(f"CREATE SCHEMA IF NOT EXISTS tenant_{tenant_id}")
+            connection.execute(text(f"CREATE SCHEMA IF NOT EXISTS {_quote_identifier(f'tenant_{tenant_id}')}"))
             connection.commit()
         return True
     except Exception as e:

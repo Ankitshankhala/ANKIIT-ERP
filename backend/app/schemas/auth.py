@@ -1,4 +1,5 @@
 from pydantic import BaseModel, EmailStr, validator
+from datetime import datetime
 from typing import Optional
 
 
@@ -8,6 +9,11 @@ class Token(BaseModel):
     refresh_token: str
     token_type: str
     expires_in: int
+
+
+class RefreshTokenRequest(BaseModel):
+    """Refresh token request schema"""
+    refresh_token: str
 
 
 class UserLogin(BaseModel):
@@ -98,19 +104,19 @@ class UserResponse(BaseModel):
     email: str
     first_name: str
     last_name: str
-    phone: Optional[str]
+    phone: Optional[str] = None
     is_active: bool
     is_verified: bool
-    avatar_url: Optional[str]
-    bio: Optional[str]
+    avatar_url: Optional[str] = None
+    bio: Optional[str] = None
     timezone: str
     language: str
     organization_id: int
     role_id: int
-    role_name: Optional[str]
-    permissions: Optional[list[str]]
-    created_at: str
-    updated_at: str
+    role_name: Optional[str] = None
+    permissions: Optional[list[str]] = None
+    created_at: datetime
+    updated_at: datetime
     
     class Config:
         from_attributes = True

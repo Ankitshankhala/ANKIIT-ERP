@@ -19,6 +19,10 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r backend/requirements.txt
+    - name: Smoke tests with pytest
+      working-directory: ./backend
+      # Runs against a throwaway SQLite database; no services needed
+      run: python -m pytest -q
     - name: Lint with flake8
       run: |
         pip install flake8
@@ -44,14 +48,19 @@ jobs:
       working-directory: ./frontend
       # Use npm ci for reproducible builds from package-lock.json
       run: npm ci
-    - name: Lint with ESLint
-      working-directory: ./frontend
-      # This step is expected to fail until the linting setup is fixed
-      run: npm run lint --if-present
     - name: Type check with TypeScript
       working-directory: ./frontend
-      # This step is expected to fail until the tsc script is fixed
-      run: npm run type-check --if-present
+      run: npm run type-check
+    - name: Smoke tests with Vitest
+      working-directory: ./frontend
+      run: npm test
+    - name: Build
+      working-directory: ./frontend
+      run: npm run build
+    - name: Lint with ESLint
+      working-directory: ./frontend
+      # Still fails on existing `no-explicit-any` errors until those are typed
+      run: npm run lint --if-present
     - name: Security audit with npm
       working-directory: ./frontend
       run: npm audit

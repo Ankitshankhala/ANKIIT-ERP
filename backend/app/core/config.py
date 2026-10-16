@@ -1,5 +1,6 @@
 from typing import List, Optional
-from pydantic import BaseSettings, validator
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 import os
 
 
@@ -46,6 +47,11 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "uploads"
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB
     
+    # Initial admin user created by scripts/init_db.py (skipped when no password is set)
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_EMAIL: str = "admin@example.com"
+    ADMIN_PASSWORD: Optional[str] = None
+
     # Multi-tenancy
     DEFAULT_TENANT_SCHEMA: str = "public"
     TENANT_HEADER: str = "X-Tenant-ID"
@@ -59,7 +65,8 @@ class Settings(BaseSettings):
     ACCOUNTS_EXPENSE_CODE: str = "5000_EXPENSE"
     ACCOUNTS_COGS_CODE: str = "5100_COGS"
     
-    @validator("ALLOWED_ORIGINS", pre=True)
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
     def assemble_cors_origins(cls, v):
         if isinstance(v, str) and not v.startswith("["):
             return [i.strip() for i in v.split(",")]
@@ -67,7 +74,8 @@ class Settings(BaseSettings):
             return v
         raise ValueError(v)
     
-    @validator("ALLOWED_HOSTS", pre=True)
+    @field_validator("ALLOWED_HOSTS", mode="before")
+    @classmethod
     def assemble_allowed_hosts(cls, v):
         if isinstance(v, str) and not v.startswith("["):
             return [i.strip() for i in v.split(",")]
@@ -75,9 +83,12 @@ class Settings(BaseSettings):
             return v
         raise ValueError(v)
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    # Read the repo-root .env (when run from backend/) and backend/.env; real env vars win
+    model_config = SettingsConfigDict(
+        env_file=("../.env", ".env"),
+        case_sensitive=True,
+        extra="ignore",
+    )
 
 
 # Create settings instance

@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from contextlib import asynccontextmanager
 
@@ -8,6 +9,7 @@ from app.core.database import engine
 from app.api.v1.api import api_router
 from app.core.logging import setup_logging, AuditMiddleware
 from app.core.tenant import TenantMiddleware
+from app.core.org_scope import CrossOrganizationReferenceError
 
 
 @asynccontextmanager
@@ -17,7 +19,7 @@ async def lifespan(app: FastAPI):
     setup_logging()
     yield
     # Shutdown
-    await engine.dispose()
+    engine.dispose()
 
 
 def create_application() -> FastAPI:
@@ -50,6 +52,11 @@ def create_application() -> FastAPI:
     # Tenant and audit middlewares
     app.add_middleware(TenantMiddleware)
     app.add_middleware(AuditMiddleware)
+
+    # A request that names another organization's record gets the same answer as a missing one
+    @app.exception_handler(CrossOrganizationReferenceError)
+    async def cross_organization_reference_handler(request: Request, exc: CrossOrganizationReferenceError):
+        return JSONResponse(status_code=404, content={"detail": "Referenced record not found"})
 
     # Include API router
     app.include_router(api_router, prefix="/api/v1")

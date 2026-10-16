@@ -6,6 +6,7 @@ from fastapi import HTTPException, status, Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from app.core.config import settings
+from app.core.org_scope import set_session_organization
 from app.models.user import User
 from app.core.database import get_db
 from sqlalchemy.orm import Session
@@ -83,7 +84,10 @@ def get_current_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Inactive user"
         )
-    
+
+    # Every ERP query on this request's session is limited to the user's organization
+    set_session_organization(db, user.organization_id)
+
     # Stash actor details for downstream middlewares
     if request is not None:
         try:
@@ -119,7 +123,11 @@ def check_user_permissions(user: User, required_permission: str) -> bool:
     """Check if user has required permission"""
     if not user.role:
         return False
-    
+
+    # Superusers implicitly hold every permission
+    if user.is_superuser:
+        return True
+
     return user.role.has_permission(required_permission)
 
 

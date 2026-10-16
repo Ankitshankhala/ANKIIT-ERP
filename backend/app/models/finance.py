@@ -1,9 +1,10 @@
-from sqlalchemy import Column, Integer, String, Numeric, DateTime, Boolean, ForeignKey, Text, Enum
+from sqlalchemy import Column, Integer, String, Numeric, DateTime, Boolean, ForeignKey, Text, Enum, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from decimal import Decimal
 import enum
 from .base import BaseModel, Base
+from app.core.org_scope import OrgScopedMixin
 
 class AccountType(str, enum.Enum):
     ASSET = "asset"
@@ -50,10 +51,11 @@ class PaymentMethod(str, enum.Enum):
     CHECK = "check"
     DIGITAL_WALLET = "digital_wallet"
 
-class Account(BaseModel, Base):
+class Account(OrgScopedMixin, BaseModel, Base):
     __tablename__ = "accounts"
+    __table_args__ = (UniqueConstraint("organization_id", "code", name="uq_accounts_org_code"),)
     
-    code = Column(String(20), unique=True, nullable=False, index=True)
+    code = Column(String(20), nullable=False, index=True)
     name = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
     account_type = Column(Enum(AccountType), nullable=False)
@@ -65,8 +67,13 @@ class Account(BaseModel, Base):
     is_locked = Column(Boolean, default=False)
     
     # Relationships
-    parent_account = relationship("Account", remote_side=[id], backref="sub_accounts")
-    transactions = relationship("Transaction", backref="account")
+    parent_account = relationship("Account", remote_side="Account.id", backref="sub_accounts")
+    # Transactions touch an account on either side, so this is a read-only union of both FKs
+    transactions = relationship(
+        "Transaction",
+        primaryjoin="or_(Account.id == Transaction.debit_account_id, Account.id == Transaction.credit_account_id)",
+        viewonly=True,
+    )
     
     def __repr__(self):
         return f"<Account(code='{self.code}', name='{self.name}', type='{self.account_type}')>"
@@ -77,10 +84,11 @@ class Account(BaseModel, Base):
             return f"{self.parent_account.full_name} > {self.name}"
         return self.name
 
-class Transaction(BaseModel, Base):
+class Transaction(OrgScopedMixin, BaseModel, Base):
     __tablename__ = "transactions"
+    __table_args__ = (UniqueConstraint("organization_id", "transaction_number", name="uq_transactions_org_transaction_number"),)
     
-    transaction_number = Column(String(50), unique=True, nullable=False, index=True)
+    transaction_number = Column(String(50), nullable=False, index=True)
     transaction_type = Column(Enum(TransactionType), nullable=False)
     description = Column(Text, nullable=False)
     amount = Column(Numeric(15, 2), nullable=False)
@@ -113,10 +121,11 @@ class Transaction(BaseModel, Base):
         self.is_posted = True
         self.posted_date = func.now()
 
-class Invoice(BaseModel, Base):
+class Invoice(OrgScopedMixin, BaseModel, Base):
     __tablename__ = "invoices"
+    __table_args__ = (UniqueConstraint("organization_id", "invoice_number", name="uq_invoices_org_invoice_number"),)
     
-    invoice_number = Column(String(50), unique=True, nullable=False, index=True)
+    invoice_number = Column(String(50), nullable=False, index=True)
     customer_name = Column(String(200), nullable=False)
     customer_email = Column(String(200), nullable=True)
     customer_address = Column(Text, nullable=True)
@@ -176,10 +185,11 @@ class Invoice(BaseModel, Base):
         dt = self.invoice_date
         return f"{dt.year:04d}-{dt.month:02d}"
 
-class Payment(BaseModel, Base):
+class Payment(OrgScopedMixin, BaseModel, Base):
     __tablename__ = "payments"
+    __table_args__ = (UniqueConstraint("organization_id", "payment_number", name="uq_payments_org_payment_number"),)
     
-    payment_number = Column(String(50), unique=True, nullable=False, index=True)
+    payment_number = Column(String(50), nullable=False, index=True)
     invoice_id = Column(Integer, ForeignKey("invoices.id"), nullable=False)
     amount = Column(Numeric(15, 2), nullable=False)
     payment_method = Column(Enum(PaymentMethod), nullable=False)
@@ -205,7 +215,7 @@ class Payment(BaseModel, Base):
         self.status = "completed"
 
 
-class InvoiceLineItem(BaseModel, Base):
+class InvoiceLineItem(OrgScopedMixin, BaseModel, Base):
     __tablename__ = "invoice_line_items"
 
     invoice_id = Column(Integer, ForeignKey("invoices.id"), nullable=False, index=True)
@@ -221,11 +231,12 @@ class InvoiceLineItem(BaseModel, Base):
     invoice = relationship("Invoice", back_populates="items")
 
 
-class AccountingPeriod(BaseModel, Base):
+class AccountingPeriod(OrgScopedMixin, BaseModel, Base):
     __tablename__ = "accounting_periods"
+    __table_args__ = (UniqueConstraint("organization_id", "period", name="uq_accounting_periods_org_period"),)
 
     # Period in format YYYY-MM
-    period = Column(String(7), unique=True, nullable=False, index=True)
+    period = Column(String(7), nullable=False, index=True)
     start_date = Column(DateTime, nullable=True)
     end_date = Column(DateTime, nullable=True)
     is_closed = Column(Boolean, default=False, nullable=False)

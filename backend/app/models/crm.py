@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
 from .base import BaseModel, Base
+from app.core.org_scope import OrgScopedMixin
 
 
 class LeadStatus(str, enum.Enum):
@@ -28,7 +29,7 @@ class CommunicationType(str, enum.Enum):
     NOTE = "note"
 
 
-class Customer(BaseModel, Base):
+class Customer(OrgScopedMixin, BaseModel, Base):
     __tablename__ = "customers"
 
     name = Column(String(200), nullable=False)
@@ -42,7 +43,7 @@ class Customer(BaseModel, Base):
     opportunities = relationship("Opportunity", back_populates="customer")
 
 
-class Lead(BaseModel, Base):
+class Lead(OrgScopedMixin, BaseModel, Base):
     __tablename__ = "leads"
 
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
@@ -56,7 +57,7 @@ class Lead(BaseModel, Base):
     customer = relationship("Customer", back_populates="leads")
 
 
-class Opportunity(BaseModel, Base):
+class Opportunity(OrgScopedMixin, BaseModel, Base):
     __tablename__ = "opportunities"
 
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
@@ -69,7 +70,7 @@ class Opportunity(BaseModel, Base):
     customer = relationship("Customer", back_populates="opportunities")
 
 
-class Communication(BaseModel, Base):
+class Communication(OrgScopedMixin, BaseModel, Base):
     __tablename__ = "communications"
 
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)

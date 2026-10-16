@@ -6,7 +6,6 @@ import {
   TrendingUp, 
   TrendingDown,
   Activity,
-  Calendar,
   Target
 } from 'lucide-react'
 

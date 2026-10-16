@@ -228,7 +228,7 @@ function ProductsSection() {
 function WarehousesSection() {
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const { page, size, q, sort_by, sort_dir, setPage, setQ, setSort } = useTableState({ size: 10, sort_by: 'created_at', sort_dir: 'desc' })
+  const { page, size, q, sort_by, sort_dir, setPage, setQ } = useTableState({ size: 10, sort_by: 'created_at', sort_dir: 'desc' })
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ code: '', name: '', location: '' })
 
@@ -277,9 +277,9 @@ function WarehousesSection() {
             </tbody>
           </table>
           <div className="flex justify-end items-center gap-2 mt-4">
-            <button className="btn-secondary" disabled={page===1} onClick={()=>setPage(p=>Math.max(1,p-1))}>Prev</button>
+            <button className="btn-secondary" disabled={page===1} onClick={()=>setPage(page-1)}>Prev</button>
             <span className="text-sm text-gray-600">Page {page}</span>
-            <button className="btn-secondary" disabled={items.length<10} onClick={()=>setPage(p=>p+1)}>Next</button>
+            <button className="btn-secondary" disabled={items.length<10} onClick={()=>setPage(page+1)}>Next</button>
           </div>
         </div>
       )}
@@ -340,9 +340,9 @@ function SuppliersSection() {
             </tbody>
           </table>
           <div className="flex justify-end items-center gap-2 mt-4">
-            <button className="btn-secondary" disabled={page===1} onClick={()=>setPage(p=>Math.max(1,p-1))}>Prev</button>
+            <button className="btn-secondary" disabled={page===1} onClick={()=>setPage(page-1)}>Prev</button>
             <span className="text-sm text-gray-600">Page {page}</span>
-            <button className="btn-secondary" disabled={items.length<10} onClick={()=>setPage(p=>p+1)}>Next</button>
+            <button className="btn-secondary" disabled={items.length<10} onClick={()=>setPage(page+1)}>Next</button>
           </div>
         </div>
       )}
