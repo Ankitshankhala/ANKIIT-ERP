@@ -106,21 +106,49 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Create tables and seed roles, the admin user (ADMIN_* in .env) and a chart of accounts
+# Create tables and seed roles, a demo organization with the admin user (ADMIN_* in .env)
+# and that organization's chart of accounts
 python scripts/init_db.py
 
 # Run development server
 uvicorn main:app --reload --port 8000
 
-# Smoke tests (use their own throwaway SQLite database)
+# Tests (use their own throwaway SQLite database)
 python -m pytest -q
+
+# Same tests against an empty PostgreSQL database
+TEST_DATABASE_URL=postgresql://user:pass@localhost:5432/erp_tests python -m pytest -q
 ```
 
 Sign in with the `ADMIN_USERNAME` / `ADMIN_PASSWORD` from your `.env`. Newly registered users get
 the basic `user` role and cannot open the ERP modules until a superuser grants permissions.
 
-`init_db.py` creates tables straight from the models and works on SQLite and PostgreSQL. The Alembic
-migrations in `alembic/versions` use PostgreSQL-only DDL and cannot run on SQLite.
+`init_db.py` creates tables straight from the models and works on SQLite and PostgreSQL. It does not
+alter existing tables: after a model change (such as the `organization_id` columns), delete
+`backend/dev.db` and run it again.
+
+On PostgreSQL, build the schema with the Alembic migrations, then seed it:
+
+```bash
+cd backend
+alembic upgrade head          # schema, exactly as the models define it
+python scripts/init_db.py     # roles, demo organization, admin user, chart of accounts
+```
+
+The migrations use PostgreSQL-only DDL, so SQLite development databases use `init_db.py` alone.
+After changing a model, add a migration with `alembic revision --autogenerate -m "..."` and review it
+before committing.
+
+### Organization data isolation
+Every ERP record (accounts, invoices, customers, products, employees, ...) belongs to one
+organization. The backend adds `organization_id = <signed-in user's organization>` to every query on
+those tables and stamps it on every new row (`app/core/org_scope.py`), so an organization cannot read,
+change or reference another organization's records. Codes and document numbers are unique per
+organization, and each new organization gets its own chart of accounts when it registers.
+
+Superusers can list and manage users, organizations and tenants across the platform, but their ERP
+data is scoped to their own organization like everyone else's. `tests/test_org_isolation.py` covers
+these rules.
 
 ### Frontend Development
 ```bash
