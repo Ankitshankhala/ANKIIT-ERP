@@ -18,6 +18,7 @@ A modern, scalable ERP system built with React, FastAPI, and PostgreSQL.
 ```
 ANKIIT ERP/
 ├── frontend/          # React + TypeScript frontend
+├── mobile/            # Expo (React Native) app for Android and iOS
 ├── backend/           # FastAPI Python backend
 ├── database/          # Database migrations and schemas
 ├── docker/            # Docker configuration
@@ -28,6 +29,7 @@ ANKIIT ERP/
 ## 🛠️ Tech Stack
 
 - **Frontend**: React 18, TypeScript, Tailwind CSS, React Router
+- **Mobile**: Expo SDK 58 (React Native), TypeScript, Expo Router — see [mobile/README.md](mobile/README.md)
 - **Backend**: FastAPI, Python 3.11+, SQLAlchemy, Alembic
 - **Database**: PostgreSQL 15+
 - **Authentication**: JWT, OAuth2
